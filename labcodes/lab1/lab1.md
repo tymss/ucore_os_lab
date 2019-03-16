@@ -61,6 +61,33 @@
 	
 3. bootblock的生成
 
-	
+	makefile中生成bootblock的代码为
+	```
+	bootfiles = $(call listf_cc,boot)
+	$(foreach f,$(bootfiles),$(call cc_compile,$(f),$(CC),$(CFLAGS) -Os -nostdinc))
 
+	bootblock = $(call totarget,bootblock)
+
+	$(bootblock): $(call toobj,$(bootfiles)) | $(call totarget,sign)
+	@echo + ld $@
+	$(V)$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 $^ -o $(call toobj,bootblock)
+	@$(OBJDUMP) -S $(call objfile,bootblock) > $(call asmfile,bootblock)
+	@$(OBJCOPY) -S -O binary $(call objfile,bootblock) $(call outfile,bootblock)
+	@$(call totarget,sign) $(call outfile,bootblock) $(bootblock)
+
+	$(call create_target,bootblock)
+	```
+	通过make V=命令看到，首先使用gcc命令将bootasm.S和bootmain.c编译为对应的.o文件，这里的选项和编译kernel文件时一样。接着使用gcc编译sign
+	```
+	gcc -Itools/ -g -Wall -O2 -c tools/sign.c -o obj/sign/tools/sign.o
+	gcc -g -Wall -O2 obj/sign/tools/sign.o -o bin/sign
+	```
+	之后使用ld命令将bootasm.o和bootmain.o连接起来生成bin/bootblock
+	```
+	ld -m    elf_i386 -nostdlib -N -e start -Ttext 0x7C00 obj/boot/bootasm.o obj/boot/bootmain.o -o obj/bootblock.o
+	```
+	指定start为程序入口，text段地址是0x7C00
+	
+4. 完成了以上操作后，创建大小为10000的0空间给bin/ucore.img，然后将bootblock和kernel依次拷贝进去，即完成了ucore.img的生成。
+	
 ### 3.一个被系统认为是符合规范的硬盘主引导扇区的特征是什么？
